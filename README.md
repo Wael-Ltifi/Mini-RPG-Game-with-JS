@@ -1,4 +1,4 @@
 Url :
-https://wael-ltifi.github.io/Wael_3D_RPG/
+https://wael-ltifi.github.io/Mini-RPG-Game-with-JS/
 ---------------------
-there's a folder containing an apk for android ( made with android studio )
+APK for Android is in the release ( made with android studio )
