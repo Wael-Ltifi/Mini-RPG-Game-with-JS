@@ -78,7 +78,7 @@ class HackNSlashDemo {
 
     this._scene = new THREE.Scene();
     this._scene.background = new THREE.Color(0xFFFFFF);
-    this._scene.fog = new THREE.FogExp2(0x89b2eb, 0.002);
+    this._scene.fog = null;
 
     let light = new THREE.DirectionalLight(0xFFFFFF, 1.0);
     light.position.set(-10, 500, 10);
@@ -127,32 +127,53 @@ class HackNSlashDemo {
   }
 
   _LoadSky() {
-    const hemiLight = new THREE.HemisphereLight(0xFFFFFF, 0xFFFFFFF, 0.6);
+    // keep hemisphere light for ambient color
+    const hemiLight = new THREE.HemisphereLight(0xFFFFFF, 0xFFFFFF, 0.6);
     hemiLight.color.setHSL(0.6, 1, 0.6);
     hemiLight.groundColor.setHSL(0.095, 1, 0.75);
     this._scene.add(hemiLight);
 
-    const uniforms = {
-      "topColor": { value: new THREE.Color(0x0077ff) },
-      "bottomColor": { value: new THREE.Color(0xffffff) },
-      "offset": { value: 33 },
-      "exponent": { value: 0.6 }
-    };
-    uniforms["topColor"].value.copy(hemiLight.color);
+    if (this._scene.fog) {
+      this._scene.fog.color.set(0xffffff);
+    }
 
-    this._scene.fog.color.copy(uniforms["bottomColor"].value);
+    const textureLoader = new THREE.TextureLoader();
 
-    const skyGeo = new THREE.SphereBufferGeometry(1000, 32, 15);
-    const skyMat = new THREE.ShaderMaterial({
-      uniforms: uniforms,
-      vertexShader: _VS,
-      fragmentShader: _FS,
-      side: THREE.BackSide
-    });
+    textureLoader.load(
+      './resources/images/sky.jpg',
+      (texture) => {
+        texture.encoding = THREE.sRGBEncoding;
 
-    const sky = new THREE.Mesh(skyGeo, skyMat);
-    this._scene.add(sky);
+        // <CHANGE> Wrap horizontally so image repeats as camera moves around
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.ClampToEdgeWrapping;
+
+        if (this._threejs && this._threejs.capabilities) {
+          texture.anisotropy = this._threejs.capabilities.getMaxAnisotropy();
+        }
+
+        // <CHANGE> Create a cylinder in world space (not attached to camera)
+        const geometry = new THREE.CylinderGeometry(1000, 1000, 1500, 64, 1, true);
+        const material = new THREE.MeshBasicMaterial({
+          map: texture,
+          side: THREE.BackSide // render inside of cylinder
+        });
+        const skyCylinder = new THREE.Mesh(geometry, material);
+
+        // Position cylinder at world center
+        skyCylinder.position.set(0, 0, 0);
+        this._scene.add(skyCylinder);
+
+        console.log("✅ Sky loaded as panoramic cylinder");
+      },
+      undefined,
+      (err) => {
+        console.error("❌ Failed to load sky texture:", err);
+      }
+    );
   }
+
+
 
   _LoadClouds() {
     for (let i = 0; i < 20; ++i) {
@@ -422,52 +443,46 @@ class HackNSlashDemo {
 let _APP = null;
 
 window.addEventListener('DOMContentLoaded', () => {
-
   const bgMusic = document.getElementById('bg-music');
-  // Unmute on first click
-  document.body.addEventListener('click', () => {
-    bgMusic.muted = false;
-    bgMusic.play();
-  }, { once: true });
+  let bgMusicStarted = false;
 
   const startBtn = document.getElementById('start-game-btn');
+  const aboutBtn = document.getElementById('about-btn');
+
+  // Only start music on first user click that's NOT the About button
+  document.body.addEventListener('click', (e) => {
+    if (!bgMusicStarted && e.target !== aboutBtn) {
+      bgMusic.muted = false;
+      bgMusic.play();
+      bgMusicStarted = true;
+    }
+  }, { passive: true });
 
   startBtn.addEventListener('click', () => {
-    // show loading
-    // create loading div
-    // create a single loading div with text inside
     startBtn.style.display = 'none';
     aboutBtn.style.display = 'none';
+
     const loadingDiv = document.createElement('div');
     loadingDiv.id = 'loading';
     loadingDiv.innerText = 'Loading';
     document.body.appendChild(loadingDiv);
 
-    // initialize the game immediately
     _APP = new HackNSlashDemo();
 
-    // wait a few frames (~100ms per frame) to let it fully initialize
-    // then remove loading and show the game
     setTimeout(() => {
-      // hide start screen
       document.getElementById('start-screen').style.display = 'none';
-
-      // show the game HTML
       document.getElementById('game-html').style.display = 'block';
-
-      // remove loading
       document.body.removeChild(loadingDiv);
-    }, 5000); // adjust delay if needed, or use requestAnimationFrame loop
+    }, 5000);
   });
 
-  const aboutBtn = document.getElementById('about-btn');
-
   aboutBtn.addEventListener('click', () => {
+    if (bgMusicStarted) {
+      bgMusic.pause();
+    }
 
-    bgMusic.pause();
-    // create the full-screen video
     const video = document.createElement('video');
-    video.src = './resources/videos/princessCutscene.mp4'; // your video path
+    video.src = './resources/videos/princessCutscene.mp4';
     video.style.position = 'fixed';
     video.style.top = '0';
     video.style.left = '0';
@@ -480,21 +495,14 @@ window.addEventListener('DOMContentLoaded', () => {
     video.controls = false;
     document.body.appendChild(video);
 
-    // remove video when it ends
-    video.addEventListener('ended', () => {
+    const resumeMusic = () => {
       document.body.removeChild(video);
-      bgMusic.play();
-    });
+      if (bgMusicStarted) bgMusic.play();
+    };
 
-    // skip video on click/touch
-    video.addEventListener('click', () => {
-      document.body.removeChild(video);
-      bgMusic.play();
-    });
-    video.addEventListener('touchstart', () => {
-      document.body.removeChild(video);
-      bgMusic.play();
-    });
+    video.addEventListener('ended', resumeMusic);
+    video.addEventListener('click', resumeMusic);
+    video.addEventListener('touchstart', resumeMusic);
   });
 
   const controlButtons = document.querySelectorAll('.control-button');
@@ -503,12 +511,8 @@ window.addEventListener('DOMContentLoaded', () => {
     button.addEventListener('touchend', (e) => { e.preventDefault(); }, { passive: false });
   });
 
-  // Add an Exit button in your HTML:
-  // <button id="exit-btn">Exit</button>
-
   const exitBtn = document.getElementById('exit-btn');
   exitBtn.addEventListener('click', () => {
-    window.location.reload(); // reloads the page, resets everything
+    window.location.reload();
   });
-
 });
