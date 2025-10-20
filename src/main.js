@@ -162,6 +162,7 @@ class HackNSlashDemo {
 
         // Position cylinder at world center
         skyCylinder.position.set(0, 0, 0);
+        skyCylinder.rotation.y = Math.PI;
         this._scene.add(skyCylinder);
 
         console.log("✅ Sky loaded as panoramic cylinder");
@@ -516,3 +517,4 @@ window.addEventListener('DOMContentLoaded', () => {
     window.location.reload();
   });
 });
+
