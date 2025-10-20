@@ -14,7 +14,7 @@ export const attack_controller = (() => {
       this._timeElapsed = 0.0;
       this._action = null;
 
-      this._slashSound = new Audio('../resources/sounds/sword.mp3');
+      this._slashSound = new Audio('./resources/sounds/sword.mp3');
       this._slashSound.volume = 0.5; 
 
     }
@@ -95,4 +95,5 @@ export const attack_controller = (() => {
   return {
       AttackController: AttackController,
   };
+
 })();
